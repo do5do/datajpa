@@ -3,13 +3,13 @@ package study.datajpa.repository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import study.datajpa.dto.MemberDto;
 import study.datajpa.entity.Member;
 
+import javax.persistence.LockModeType;
+import javax.persistence.QueryHint;
 import java.util.List;
 import java.util.Optional;
 
@@ -57,4 +57,26 @@ public interface MemberRepository extends JpaRepository<Member, Long> { // JpaRe
     // clearAutomatically = true : 영속성 컨텍스트 초기화
     @Query("update Member m set m.age = m.age + 1 where m.age >= :age")
     int bulkAgePlus(@Param("age") int age);
+
+    // fetch join query 직접 작성
+    @Query("select m from Member m left join fetch m.team")
+    List<Member> findMemberFetchJoin();
+
+    @Override
+    @EntityGraph(attributePaths = {"team"}) // spring data jpa에서 지원하는 fetch join
+    List<Member> findAll();
+
+    @Query("select m from Member m") // 직접 쿼리를 짠 거에
+    @EntityGraph(attributePaths = {"team"}) // fetch join 추가 가능
+    List<Member> findMemberEntityGraph();
+
+    @EntityGraph(attributePaths = ("team"))
+//    @EntityGraph("Member.all") : namedEntityGraph
+    List<Member> findEntityGraphByUsername(@Param("username") String username);
+
+    @QueryHints(value = @QueryHint(name = "org.hibernate.readOnly", value = "true"))
+    Member findReadOnlyByUsername(String username);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    List<Member> findLockByUsername(String username);
 }

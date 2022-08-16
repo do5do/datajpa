@@ -1,5 +1,6 @@
 package study.datajpa.repository;
 
+import org.hibernate.Hibernate;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -15,6 +16,7 @@ import study.datajpa.entity.Team;
 
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
+import javax.persistence.PersistenceUnitUtil;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -305,5 +307,76 @@ class MemberRepositoryTest {
 
         // then
         assertThat(resultCount).isEqualTo(3);
+    }
+
+    @Test
+    void findMemberLazy() {
+        // given
+        // member1 -> teamA
+        // member2 -> teamB
+
+        Team teamA = new Team("teamA");
+        Team teamB = new Team("teamB");
+        teamRepository.save(teamA);
+        teamRepository.save(teamB);
+        Member member1 = new Member("member1", 10, teamA);
+        Member member2 = new Member("member2", 20, teamB);
+        memberRepository.save(member1);
+        memberRepository.save(member2);
+
+        em.flush();
+        em.clear();
+
+        // when
+        List<Member> members = memberRepository.findAll();
+
+        // ======= 기본 =======
+        // memberRepository.findAll(); (기본)
+        // N + 1의 문제 -> N은 쿼리 결과 개수(members)
+        // member.getTeam()까지는 쿼리를 하지 않음 -> proxy 객체
+        // member.getTeam().getName()을 하면 쿼리를 날려서 찾아옴 -> Lazy 초기화
+
+        // ======= FETCH JOIN =======
+        // memberRepository.findMemberFetchJoin(); memberRepository.findAll(); (@Override로 재정의한 메서드)
+        // => fetch join으로 member와 team을 한 번에 조회해온다. -> team(member.getTeam().getClass())은 proxy가 아니라 진짜 entity
+        // => fetch join은 기본적으로 left outer join으로 쿼리 한다.
+
+        for (Member member : members) {
+            System.out.println("member = " + member.getUsername());
+            System.out.println("member.teamClass = " + member.getTeam().getClass());
+            System.out.println("member.team = " + member.getTeam().getName());
+        }
+
+        // * member.team을 객체 그래프라고 한다.
+    }
+
+    @Test
+    void queryHint() {
+        // given
+        Member member1 = new Member("member1", 10);
+        memberRepository.save(member1);
+        em.flush(); // 실제 db에 insert query 나감!
+        em.clear();
+
+        // when
+//        Member findMember = memberRepository.findById(member1.getId()).get();
+        Member findMember = memberRepository.findReadOnlyByUsername(member1.getUsername()); // hint로 읽기만 한다고 명시 -> update가 일어나지 않음
+        findMember.setUsername("member2"); // 변경 -> 변경 감지 동작 -> update query 발생
+
+        em.flush(); // flush가 일어날때 update query가 발생한다고 하는데, 없어도 update 된다.
+        // 변경 감지가 동작하려면 원래 entity(스냅샷)와 바뀐 entity 두가지가 있어야 비교가 가능하다. -> 메모리를 더 많이 먹음 (조회 시점부터 스냅샷을 떠놓는다.)
+        // 이를 최적화하기 위해 hint가 존재한다. -> 이 쿼리는 다른거 다 필요없고 읽기만 할거야! == 스냅샷 안 떠도 된다는 말
+    }
+
+    @Test
+    void lock() {
+        // given
+        Member member1 = new Member("member1", 10);
+        memberRepository.save(member1);
+        em.flush();
+        em.clear();
+
+        // when
+        List<Member> members = memberRepository.findLockByUsername("member1");
     }
 }
