@@ -15,7 +15,9 @@ import java.util.Optional;
 
 // @Repository 생략 가능 -> 컴포넌트 스캔을 spring data jpa가 자동으로 처리
 // interface만 있어도 동작하는 이유 -> spring data jpa가 구현체를 만들어주기 때문
-public interface MemberRepository extends JpaRepository<Member, Long> { // JpaRepository<Entity, pk(Id)> 를 의미한다.
+public interface MemberRepository extends JpaRepository<Member, Long>, MemberRepositoryCustom {
+    // JpaRepository<Entity, pk(Id)> 를 의미한다.
+
     List<Member> findByUsernameAndAgeGreaterThan(String username, int age);
 
     // NamedQuery
@@ -79,4 +81,17 @@ public interface MemberRepository extends JpaRepository<Member, Long> { // JpaRe
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     List<Member> findLockByUsername(String username);
+
+    // Dto로 회원 이름만 조회하고 싶을때
+    // Generic type으로 동적으로 프로젝션 데이터 변경이 가능하다.
+    <T> List<T> findProjectionsByUsername(@Param("username") String username, Class<T> type);
+
+    @Query(value = "select * from member where username = ?", nativeQuery = true)
+    Member findByNativeQuery(String username);
+
+    @Query(value = "select m.member_id as id, m.username, t.name as teamName " +
+            "from member m left join team t",
+            countQuery = "select count(*) from member",
+            nativeQuery = true)
+    Page<MemberProjection> findByNativeProjection(Pageable pageable);
 }
