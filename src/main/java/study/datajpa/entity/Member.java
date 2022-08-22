@@ -50,4 +50,8 @@ public class Member extends BaseEntity {
         this.team = team;
         team.getMembers().add(this); // team의 member도 수정
     }
+
+    public void changeName(String name) {
+        this.username = name;
+    }
 }
