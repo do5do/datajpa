@@ -29,6 +29,7 @@ class MemberServiceTest {
         String updateName = "newTest";
         memberService.updateMember(member.getId(), updateName);
 
+
         // then
         Member findMember = memberRepository.findById(member.getId()).get();
         Assertions.assertThat(findMember.getUsername())
